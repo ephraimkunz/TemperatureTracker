@@ -10,3 +10,4 @@ ESP8266 Temperature tracker that records results in Adafruit IO time series data
 #define WIFI_SSID   "wifi_ssid"
 #define WIFI_PASS   "wifi_password"
 ```
+2. Create the feeds you want through Adafruit's web UI and update the names in the feeds array. 
