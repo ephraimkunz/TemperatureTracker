@@ -1,5 +1,6 @@
 #include "config.h"
 
+#include <ArduinoOTA.h>
 #include <ESP8266WiFi.h>
 #include "Adafruit_MQTT.h"
 #include "Adafruit_MQTT_Client.h"
@@ -55,8 +56,10 @@ void setup() {
   Serial.println(F("IP address: "));
   Serial.println(WiFi.localIP());
 
+  setupOTA();
+
   // connect to adafruit io
-  connect();
+  connectToAdafruitIO();
 
   for (int i = 0; i < NUM_DHTS; ++i) {
     dhts[i].begin();
@@ -64,19 +67,21 @@ void setup() {
 }
 
 void loop() {
- // Wait a few seconds between measurements.
- if ((millis() - prev_millis) < TIME_BETWEEN) {
-  return;
- }
+  ArduinoOTA.handle();
+    
+  // Wait a few seconds between measurements.
+  if ((millis() - prev_millis) < TIME_BETWEEN) {
+    return;
+  }
 
  // ping adafruit io a few times to make sure we remain connected
   if(! mqtt.ping(3)) {
     // reconnect to adafruit io
     if(! mqtt.connected())
-      connect();
+      connectToAdafruitIO();
   }
 
- prev_millis = millis();
+  prev_millis = millis();
   for (int i = 0; i < NUM_DHTS; ++i) {
     yield();
     DHT dht = dhts[i];
@@ -121,9 +126,54 @@ void loop() {
   Serial.println();
 }
 
-// Connect to adafruit io via MQTT
-void connect() {
+// Setup OTA
+void setupOTA() {
+  // Port defaults to 8266
+  // ArduinoOTA.setPort(8266);
 
+  // Hostname defaults to esp8266-[ChipID]
+  ArduinoOTA.setHostname("weather_sensors");
+  
+  ArduinoOTA.onStart([]() {
+    String type;
+    if (ArduinoOTA.getCommand() == U_FLASH) {
+      type = "sketch";
+    } else { // U_FS
+      type = "filesystem";
+    }
+    
+    // NOTE: if updating FS this would be the place to unmount FS using FS.end()
+    Serial.println("OTA: Start updating " + type);
+  });
+
+  ArduinoOTA.onEnd([]() {
+    Serial.println("\nOTA: End");
+  });
+  
+  ArduinoOTA.onProgress([](unsigned int progress, unsigned int total) {
+    Serial.printf("OTA: Progress: %u%%\r", (progress / (total / 100)));
+  });
+  
+  ArduinoOTA.onError([](ota_error_t error) {
+    Serial.printf("OTA: Error[%u]: ", error);
+    if (error == OTA_AUTH_ERROR) {
+      Serial.println("OTA: Auth Failed");
+    } else if (error == OTA_BEGIN_ERROR) {
+      Serial.println("OTA: Begin Failed");
+    } else if (error == OTA_CONNECT_ERROR) {
+      Serial.println("OTA: Connect Failed");
+    } else if (error == OTA_RECEIVE_ERROR) {
+      Serial.println("OTA: Receive Failed");
+    } else if (error == OTA_END_ERROR) {
+      Serial.println("OTA: End Failed");
+    }
+  });
+
+  ArduinoOTA.begin();
+}
+
+// Connect to adafruit io via MQTT
+void connectToAdafruitIO() {
   Serial.print(F("Connecting to Adafruit IO... "));
 
   int8_t ret;
